@@ -76,7 +76,7 @@ class MiniGolfWithSignals(gym.Env):
 
         noise = 10
         while abs(noise) > 1:
-            noise = self.np_random.randn() * self.sigma_noise
+            noise = _standard_normal(self.np_random) * self.sigma_noise
         u = action * self.putter_length * (1 + noise)
 
         v_min = np.sqrt(10 / 7 * self.friction * 9.81 * self.state[0])
@@ -121,3 +121,11 @@ class MiniGolfWithSignals(gym.Env):
 
     def close(self):
         pass
+
+
+def _standard_normal(random_state, size=None):
+    if hasattr(random_state, "standard_normal"):
+        return random_state.standard_normal(size=size)
+    if size is None:
+        return random_state.randn()
+    return random_state.randn(*np.atleast_1d(size))

@@ -36,6 +36,46 @@ try:
 except ImportError:
     pass
 
+
+def make_compatible_gym_env(env_id, kwargs=None):
+    kwargs = {} if kwargs is None else kwargs
+    try:
+        return gym.make(env_id, apply_api_compatibility=True, disable_env_checker=True, **kwargs)
+    except TypeError:
+        try:
+            return gym.make(env_id, disable_env_checker=True, **kwargs)
+        except TypeError:
+            return gym.make(env_id, **kwargs)
+
+
+def seed_env(env, seed):
+    if hasattr(env, "seed"):
+        env.seed(seed)
+    else:
+        env.reset(seed=seed)
+
+
+class OldGymAPIWrapper(gym.Wrapper):
+    """Expose old Gym reset/step API to OpenAI Baselines VecEnv code."""
+
+    def reset(self, **kwargs):
+        result = self.env.reset(**kwargs)
+        if isinstance(result, tuple) and len(result) == 2 and isinstance(result[1], dict):
+            return result[0]
+        return result
+
+    def step(self, action):
+        result = self.env.step(action)
+        if isinstance(result, tuple) and len(result) == 5:
+            obs, reward, terminated, truncated, info = result
+            info = dict(info)
+            done = bool(terminated or truncated)
+            if truncated:
+                info["bad_transition"] = True
+            return obs, reward, done, info
+        return result
+
+
 """
 class LatentSpaceSmoother:
     def __init__(self, shape, clipob=10., epsilon=1e-8):
@@ -56,17 +96,18 @@ def make_env_multi_task(env_id, seed, rank, log_dir, allow_early_resets, kwargs)
         if env_id.startswith("dm"):
             raise NotImplementedError
         else:
-            env = gym.make(env_id, **kwargs)
+            env = make_compatible_gym_env(env_id, kwargs)
 
         is_atari = hasattr(gym.envs, 'atari') and isinstance(
             env.unwrapped, gym.envs.atari.atari_env.AtariEnv)
         if is_atari:
             env = make_atari(env_id)
 
-        env.seed(seed + rank)
+        seed_env(env, seed + rank)
 
         if str(env.__class__.__name__).find('TimeLimit') >= 0:
             env = TimeLimitMask(env)
+        env = OldGymAPIWrapper(env)
 
         if log_dir is not None:
             env = bench.Monitor(
@@ -99,17 +140,18 @@ def make_env(env_id, seed, rank, log_dir, allow_early_resets):
             _, domain, task = env_id.split('.')
             env = dm_control2gym.make(domain_name=domain, task_name=task)
         else:
-            env = gym.make(env_id)
+            env = make_compatible_gym_env(env_id)
 
         is_atari = hasattr(gym.envs, 'atari') and isinstance(
             env.unwrapped, gym.envs.atari.atari_env.AtariEnv)
         if is_atari:
             env = make_atari(env_id)
 
-        env.seed(seed + rank)
+        seed_env(env, seed + rank)
 
         if str(env.__class__.__name__).find('TimeLimit') >= 0:
             env = TimeLimitMask(env)
+        env = OldGymAPIWrapper(env)
 
         if log_dir is not None:
             env = bench.Monitor(
@@ -194,8 +236,18 @@ def get_vec_envs_multi_task(env_name,
 # Checks whether done was caused my timit limits or not
 class TimeLimitMask(gym.Wrapper):
     def step(self, action):
-        obs, rew, done, info = self.env.step(action)
-        if done and self.env._max_episode_steps == self.env._elapsed_steps:
+        result = self.env.step(action)
+        if isinstance(result, tuple) and len(result) == 5:
+            obs, rew, terminated, truncated, info = result
+            info = dict(info)
+            done = bool(terminated or truncated)
+            if truncated:
+                info['bad_transition'] = True
+            return obs, rew, done, info
+
+        obs, rew, done, info = result
+        if done and hasattr(self.env, "_max_episode_steps") and hasattr(self.env, "_elapsed_steps") \
+                and self.env._max_episode_steps == self.env._elapsed_steps:
             info['bad_transition'] = True
 
         return obs, rew, done, info

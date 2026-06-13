@@ -48,6 +48,14 @@ class AntGoal(mujoco_env.MujocoEnv):
 
     def reset_model(self):
         qpos = self.init_qpos + self.np_random.uniform(size=self.model.nq, low=-.1, high=.1)
-        qvel = self.init_qvel + self.np_random.randn(self.model.nv) * .1
+        qvel = self.init_qvel + _standard_normal(self.np_random, self.model.nv) * .1
         self.set_state(qpos, qvel)
         return self._get_obs()
+
+
+def _standard_normal(random_state, size=None):
+    if hasattr(random_state, "standard_normal"):
+        return random_state.standard_normal(size=size)
+    if size is None:
+        return random_state.randn()
+    return random_state.randn(*np.atleast_1d(size))
