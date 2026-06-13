@@ -249,7 +249,7 @@ class VecPyTorch(VecEnvWrapper):
 
     def reset(self):
         obs = self.venv.reset()
-        obs = _normalize_vec_observation(obs)
+        obs = _normalize_vec_observation(obs, self._expected_obs_shape())
         obs = torch.from_numpy(obs).float().to(self.device)
         return obs
 
@@ -262,17 +262,20 @@ class VecPyTorch(VecEnvWrapper):
 
     def step_wait(self):
         obs, reward, done, info = self.venv.step_wait()
-        obs = _normalize_vec_observation(obs)
+        obs = _normalize_vec_observation(obs, self._expected_obs_shape())
         obs = torch.from_numpy(obs).float().to(self.device)
 
         if isinstance(reward, list):
-            reward = [torch.from_numpy(r).unsqueeze(dim=1).float() for r in reward]
+            reward = [_to_torch_column(r, self.device) for r in reward]
         else:
-            reward = torch.from_numpy(reward).unsqueeze(dim=1).float()
+            reward = _to_torch_column(reward, self.device)
         return obs, reward, done, info
 
+    def _expected_obs_shape(self):
+        return (self.num_envs,) + tuple(self.observation_space.shape)
 
-def _normalize_vec_observation(obs):
+
+def _normalize_vec_observation(obs, expected_shape=None):
     """Convert Gym/Baselines reset and step observations to a NumPy batch."""
     if isinstance(obs, tuple) and len(obs) == 2 and _looks_like_reset_info(obs[1]):
         obs = obs[0]
@@ -283,6 +286,9 @@ def _normalize_vec_observation(obs):
             obs = np.stack(obs, axis=0)
     if not isinstance(obs, np.ndarray):
         obs = np.asarray(obs)
+    if expected_shape is not None and tuple(obs.shape) != tuple(expected_shape):
+        if obs.size == int(np.prod(expected_shape)):
+            obs = obs.reshape(expected_shape)
     return obs
 
 
@@ -292,6 +298,11 @@ def _looks_like_reset_info(value):
     if isinstance(value, (list, tuple)):
         return all(isinstance(item, dict) for item in value)
     return False
+
+
+def _to_torch_column(value, device):
+    array = np.asarray(value, dtype=np.float32)
+    return torch.from_numpy(array).view(-1, 1).float().to(device)
 
 
 class VecNormalize(VecEnvWrapper):

@@ -189,13 +189,18 @@ class RL2:
         return eval_list, test_list
 
     def build_obs(self, obs, reward, action, is_init, use_obs_env, done, num_processes):
+        if obs is not None and obs.dim() > 2:
+            obs = obs.view(obs.shape[0], -1)
+        device = obs.device if obs is not None else self.device
         if is_init:
-            done = torch.zeros(num_processes, 1)
-            reward = torch.zeros(num_processes, 1)
-            action = torch.zeros(num_processes, self.action_dim)
+            done = torch.zeros(num_processes, 1, device=device)
+            reward = torch.zeros(num_processes, 1, device=device)
+            action = torch.zeros(num_processes, self.action_dim, device=device)
         else:
-            done = torch.FloatTensor([[1.0] if _done else [0.0] for _done in done])
-            action = action.float()
+            done = torch.tensor([[1.0] if _done else [0.0] for _done in done],
+                                dtype=torch.float32, device=device)
+            action = action.float().to(device)
+            reward = reward.float().to(device)
 
         if use_obs_env:
             if self.use_done:
