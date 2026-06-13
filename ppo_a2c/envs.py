@@ -76,6 +76,24 @@ class OldGymAPIWrapper(gym.Wrapper):
         return result
 
 
+class AutoResetOnDoneWrapper(gym.Wrapper):
+    """Reset immediately after a terminal step for VecEnv implementations that do not auto-reset."""
+
+    def step(self, action):
+        obs, reward, done, info = self.env.step(action)
+        if done:
+            info = dict(info)
+            info.setdefault("terminal_observation", obs)
+            obs = self.reset()
+        return obs, reward, done, info
+
+    def reset(self, **kwargs):
+        result = self.env.reset(**kwargs)
+        if isinstance(result, tuple) and len(result) == 2 and isinstance(result[1], dict):
+            return result[0]
+        return result
+
+
 """
 class LatentSpaceSmoother:
     def __init__(self, shape, clipob=10., epsilon=1e-8):
@@ -114,6 +132,7 @@ def make_env_multi_task(env_id, seed, rank, log_dir, allow_early_resets, kwargs)
                 env,
                 os.path.join(log_dir, str(rank)),
                 allow_early_resets=allow_early_resets)
+            env = AutoResetOnDoneWrapper(env)
 
         if is_atari:
             if len(env.observation_space.shape) == 3:
@@ -158,6 +177,7 @@ def make_env(env_id, seed, rank, log_dir, allow_early_resets):
                 env,
                 os.path.join(log_dir, str(rank)),
                 allow_early_resets=allow_early_resets)
+            env = AutoResetOnDoneWrapper(env)
 
         if is_atari:
             if len(env.observation_space.shape) == 3:
