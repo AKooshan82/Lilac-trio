@@ -249,6 +249,7 @@ class VecPyTorch(VecEnvWrapper):
 
     def reset(self):
         obs = self.venv.reset()
+        obs = _normalize_vec_observation(obs)
         obs = torch.from_numpy(obs).float().to(self.device)
         return obs
 
@@ -261,6 +262,7 @@ class VecPyTorch(VecEnvWrapper):
 
     def step_wait(self):
         obs, reward, done, info = self.venv.step_wait()
+        obs = _normalize_vec_observation(obs)
         obs = torch.from_numpy(obs).float().to(self.device)
 
         if isinstance(reward, list):
@@ -268,6 +270,28 @@ class VecPyTorch(VecEnvWrapper):
         else:
             reward = torch.from_numpy(reward).unsqueeze(dim=1).float()
         return obs, reward, done, info
+
+
+def _normalize_vec_observation(obs):
+    """Convert Gym/Baselines reset and step observations to a NumPy batch."""
+    if isinstance(obs, tuple) and len(obs) == 2 and _looks_like_reset_info(obs[1]):
+        obs = obs[0]
+    if isinstance(obs, list):
+        if len(obs) == 2 and _looks_like_reset_info(obs[1]):
+            obs = obs[0]
+        else:
+            obs = np.stack(obs, axis=0)
+    if not isinstance(obs, np.ndarray):
+        obs = np.asarray(obs)
+    return obs
+
+
+def _looks_like_reset_info(value):
+    if isinstance(value, dict):
+        return True
+    if isinstance(value, (list, tuple)):
+        return all(isinstance(item, dict) for item in value)
+    return False
 
 
 class VecNormalize(VecEnvWrapper):
