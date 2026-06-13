@@ -13,7 +13,10 @@ from baselines.common.vec_env.dummy_vec_env import DummyVecEnv
 try:
     from baselines.common.vec_env import ShmemVecEnv
 except ImportError:
-    from baselines.common.vec_env.shmem_vec_env import ShmemVecEnv
+    try:
+        from baselines.common.vec_env.shmem_vec_env import ShmemVecEnv
+    except ImportError:
+        ShmemVecEnv = None
 from gym.spaces.box import Box
 
 from envs.utils.running_mean_std import RunningMeanStd
@@ -364,8 +367,16 @@ class VecPyTorchFrameStack(VecEnvWrapper):
         self.venv.close()
 
 
-class MyShmemVecEnv(ShmemVecEnv):
+if ShmemVecEnv is not None:
+    class MyShmemVecEnv(ShmemVecEnv):
 
-    def __init__(self, env_fns, spaces=None, context='spawn'):
-        super(MyShmemVecEnv, self).__init__(env_fns, spaces, context)
-        self.envs = [e() for e in env_fns]
+        def __init__(self, env_fns, spaces=None, context='spawn'):
+            super(MyShmemVecEnv, self).__init__(env_fns, spaces, context)
+            self.envs = [e() for e in env_fns]
+else:
+    class MyShmemVecEnv(object):
+
+        def __init__(self, env_fns, spaces=None, context='spawn'):
+            raise ImportError("OpenAI Baselines in this environment does not provide ShmemVecEnv. "
+                              "This TRIO code path uses DummyVecEnv by default; install a Baselines "
+                              "version with ShmemVecEnv only if you explicitly need MyShmemVecEnv.")
