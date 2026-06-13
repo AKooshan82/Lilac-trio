@@ -20,12 +20,19 @@ executed under these configurations. It is possible to modify parameters
 by changing the flags. <br>
 
 ### Running experiments
-In order to train Thomson sampling, RL2, and Bayes optimal policy you can type: <br>
+In order to train Thomson sampling, RL2, Bayes optimal policy, and LILAC you can type: <br>
 `python train.py --env-type ant_goal --algo rl2` <br>
 This will train RL2 on the ant environment using the hyper-parameters specified in the corresponding `config` file. <br>
-`--algo` may be `rl2`, `ts`, `bayes`. <br>
+`--algo` may be `rl2`, `ts`, `bayes`, `lilac`. <br>
 `--env-type` may be one of the following options: `cheetah_vel`, `ant_goal`, `golf`, `golf_signals`. In the case
 of `golf_signals`, you can specify the number of additional latent variables as `--golf-num-signals`. <br> <br>
+
+Basic LILAC training command: <br>
+`python train.py --env-type cheetah_vel --algo lilac --device cuda:0 --num-processes 1 --output-folder results/lilac_cheetah` <br>
+Basic LILAC evaluation command: <br>
+`python cheetah_meta_test.py --algorithms lilac --lilac-checkpoint results/lilac_cheetah/<TIMESTAMP>/checkpoints/lilac_final.pt --output-folder results/lilac_eval` <br>
+LILAC uses a dedicated off-policy episodic replay path and has not been benchmark-reproduced locally. See
+`docs/lilac.md` and `docs/lilac_server_validation.md` for algorithm details and server validation commands. <br> <br>
 
 Policy and inference networks will be automatically stored in `result/env_name/algo_name/current_timestamp/`.<br> <br>
 
@@ -69,7 +76,6 @@ Random seeds has been used to train and test the algorithms.
 ### Visualizing results
 Once you have obtained the results for each of the method `utilities/plots/` contains utilities to generate and merge
 CSV files from raw data. You can visualize CSV results with the tool you prefer. 
-
 
 
 

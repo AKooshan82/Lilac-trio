@@ -22,6 +22,14 @@ def get_test_args():
     parser.add_argument('--task-len', type=int, default=1)
     parser.add_argument('--n-jobs', type=int, default=1)
     parser.add_argument('--n-runs', type=int, default=1)
+    parser.add_argument('--algorithms', nargs='+', default=None,
+                        help="Algorithms to evaluate, e.g. --algorithms lilac or --algorithms bayes ts_opt rl2 lilac")
+    parser.add_argument('--lilac-checkpoint', default=None, type=str,
+                        help="Path to one LILAC checkpoint")
+    parser.add_argument('--lilac-checkpoint-folder', default=None, type=str,
+                        help="Folder containing LILAC checkpoints or timestamped LILAC run folders")
+    parser.add_argument('--lilac-deterministic-actions', type=lambda x: int(x) != 0, default=True)
+    parser.add_argument('--lilac-deterministic-prior', type=lambda x: int(x) != 0, default=True)
 
     # Cuda parameters
     parser.add_argument('--no-cuda', action='store_true', default=True, help='disables CUDA training')

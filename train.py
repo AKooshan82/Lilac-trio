@@ -5,13 +5,14 @@ import numpy as np
 import argparse
 from gym import spaces
 
-from configs import cheetah_bayes_arguments, cheetah_rl2_arguments, cheetah_ts_arguments, \
+from configs import cheetah_bayes_arguments, cheetah_rl2_arguments, cheetah_ts_arguments, lilac_arguments, \
     golf_bayes_arguments, golf_rl2_arguments, \
     golf_ts_arguments, ant_goal_bayes_arguments, ant_goal_rl2_arguments, ant_goal_ts_arguments, \
     golf_with_signals_bayes_arguments
 
 from inference.inference_network import EmbeddingInferenceNetwork, InferenceNetwork
 from learner.bayes import BayesAgent
+from learner.lilac.trainer import LILACTrainer, get_lilac_env_spec
 from learner.posterior_ts_opt import PosteriorOptTSAgent
 from learner.recurrent import RL2
 from task.cheetah_vel_task_generator import CheetahVelTaskGenerator
@@ -29,7 +30,7 @@ def main():
     # Task family settings
     parser = argparse.ArgumentParser()
     parser.add_argument('--env-type')
-    parser.add_argument('--algo', default='rl2', help="choose in {'rl2', 'bayes', 'ts'}")
+    parser.add_argument('--algo', default='rl2', help="choose in {'rl2', 'bayes', 'ts', 'lilac'}")
     parser.add_argument('--golf-num-signals', type=int, default=None)
     args, rest_args = parser.parse_known_args()
     env = args.env_type
@@ -38,6 +39,26 @@ def main():
 
     if env != "golf_signals":
         assert golf_num_signals is None
+
+    if algo == "lilac":
+        args = lilac_arguments.get_args(rest_args)
+        env_spec = get_lilac_env_spec(env, golf_num_signals=golf_num_signals)
+        if len(args.output_folder) == 0:
+            result_path = env_spec.result_folder
+        else:
+            result_path = args.output_folder
+            if not result_path.endswith("/"):
+                result_path += "/"
+        fd, folder_path_with_date = handle_folder_creation(result_path=result_path)
+        if fd is not None:
+            fd.write("LILAC run folder: {}\n".format(folder_path_with_date))
+            fd.close()
+        print("Algorithm start..")
+        trainer = LILACTrainer(args=args, env_spec=env_spec, output_folder=folder_path_with_date)
+        result = trainer.train()
+        with open("{}train_result.pkl".format(folder_path_with_date), "wb") as output:
+            pickle.dump(result, output)
+        return
 
     # Retrieve general arguments
     if env == "cheetah_vel":

@@ -9,6 +9,7 @@ from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, WhiteKern
 
 from configs import ant_goal_ts_arguments, ant_goal_bayes_arguments, ant_goal_rl2_arguments
 from learner.bayes import BayesAgent
+from learner.lilac.evaluation import discover_lilac_checkpoints, evaluate_lilac_checkpoint
 from learner.posterior_ts_opt import PosteriorOptTSAgent
 from learner.recurrent import RL2
 from task.ant_goal_task_generator import AntGoalTaskGenerator
@@ -363,8 +364,31 @@ r_rl2 = []
 
 output_folder = args.output_folder
 folder_list = [args.bayes_folder, args.rl2_folder, args.ts_folder]
+selected_algorithms = args.algorithms if args.algorithms is not None else algo_list
+selected_algorithms = ["ts_opt" if algo == "ts" else algo for algo in selected_algorithms]
+
+if "lilac" in selected_algorithms:
+    prior_sequences_lilac, _, _ = get_sequences(n_restarts=args.n_restarts_gp,
+                                                num_test_processes=args.num_test_processes,
+                                                std=noise_seq_var ** (1 / 2))
+    task_generator_lilac = AntGoalTaskGenerator(prior_var_max=prior_var_max,
+                                                prior_var_min=prior_var_min)
+    lilac_output = output_folder if output_folder.endswith("/") else output_folder + "/"
+    for checkpoint_path in discover_lilac_checkpoints(args.lilac_checkpoint, args.lilac_checkpoint_folder):
+        evaluate_lilac_checkpoint(env_type="ant_goal",
+                                  checkpoint_path=checkpoint_path,
+                                  prior_sequences=prior_sequences_lilac,
+                                  task_generator=task_generator_lilac,
+                                  seed=1,
+                                  device=device,
+                                  output_folder=lilac_output,
+                                  task_len=args.task_len,
+                                  deterministic_actions=args.lilac_deterministic_actions,
+                                  deterministic_prior=args.lilac_deterministic_prior)
 
 for algo, f, sh in zip(algo_list, folder_list, store_history_list):
+    if algo not in selected_algorithms:
+        continue
     if algo == 'bayes':
         model_list = []
         vi_list = []
@@ -396,7 +420,21 @@ for algo, f, sh in zip(algo_list, folder_list, store_history_list):
 
 print("END ALL RUNS")
 
-meta_test_res = [r_bayes, r_ts, r_rl2]
+meta_test_res = []
+meta_label_list = []
+meta_has_track_list = []
+if "bayes" in selected_algorithms:
+    meta_test_res.append(r_bayes)
+    meta_label_list.append("bayes")
+    meta_has_track_list.append(True)
+if "ts_opt" in selected_algorithms:
+    meta_test_res.append(r_ts)
+    meta_label_list.append("TS")
+    meta_has_track_list.append(True)
+if "rl2" in selected_algorithms:
+    meta_test_res.append(r_rl2)
+    meta_label_list.append("RL")
+    meta_has_track_list.append(False)
 with open("temp.pkl", "wb") as output:
     import pickle
 
@@ -409,29 +447,30 @@ prior_sequences, gp_list_sequences, init_prior = get_sequences(n_restarts=args.n
 
 fd, folder_path_with_date = handle_folder_creation(result_path=output_folder)
 
-if args.dump_data:
+if args.dump_data and meta_test_res:
     with open("{}data_results.pkl".format(folder_path_with_date), "wb") as output:
         pickle.dump(meta_test_res, output)
 
-create_csv_rewards(r_list=meta_test_res,
-                   label_list=['bayes', 'TS', 'RL'],
-                   has_track_list=[True, True, False],
-                   num_seq=num_seq,
-                   prior_seqs=prior_sequences,
-                   seq_len_list=seq_len_list,
-                   sequence_name_list=sequence_name_list,
-                   folder_path_with_date=folder_path_with_date)
+if meta_test_res:
+    create_csv_rewards(r_list=meta_test_res,
+                       label_list=meta_label_list,
+                       has_track_list=meta_has_track_list,
+                       num_seq=num_seq,
+                       prior_seqs=prior_sequences,
+                       seq_len_list=seq_len_list,
+                       sequence_name_list=sequence_name_list,
+                       folder_path_with_date=folder_path_with_date)
 
-create_csv_tracking(r_list=meta_test_res,
-                    label_list=['bayes', 'TS', 'RL2'],
-                    has_track_list=[True, True, False],
-                    num_seq=num_seq,
-                    prior_seqs=prior_sequences,
-                    seq_len_list=seq_len_list,
-                    sequence_name_list=sequence_name_list,
-                    folder_path_with_date=folder_path_with_date,
-                    init_priors=init_prior,
-                    rescale_latent=[-3.0, 3.0],
-                    num_dim=latent_dim)
+    create_csv_tracking(r_list=meta_test_res,
+                        label_list=meta_label_list,
+                        has_track_list=meta_has_track_list,
+                        num_seq=num_seq,
+                        prior_seqs=prior_sequences,
+                        seq_len_list=seq_len_list,
+                        sequence_name_list=sequence_name_list,
+                        folder_path_with_date=folder_path_with_date,
+                        init_priors=init_prior,
+                        rescale_latent=[-3.0, 3.0],
+                        num_dim=latent_dim)
 
 fd.close()
