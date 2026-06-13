@@ -8,8 +8,12 @@ import numpy as np
 import torch
 from baselines import bench
 from baselines.common.atari_wrappers import make_atari, wrap_deepmind
-from baselines.common.vec_env import VecEnvWrapper, ShmemVecEnv
+from baselines.common.vec_env import VecEnvWrapper
 from baselines.common.vec_env.dummy_vec_env import DummyVecEnv
+try:
+    from baselines.common.vec_env import ShmemVecEnv
+except ImportError:
+    from baselines.common.vec_env.shmem_vec_env import ShmemVecEnv
 from gym.spaces.box import Box
 
 from envs.utils.running_mean_std import RunningMeanStd
