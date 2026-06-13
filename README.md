@@ -76,11 +76,3 @@ Random seeds has been used to train and test the algorithms.
 ### Visualizing results
 Once you have obtained the results for each of the method `utilities/plots/` contains utilities to generate and merge
 CSV files from raw data. You can visualize CSV results with the tool you prefer. 
-
-
-
-
-
-
-
-
